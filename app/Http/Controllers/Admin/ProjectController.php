@@ -6,6 +6,10 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 
 use App\Models\Admin\Project;
+use App\Http\Requests\StoreProjectRequest;
+use App\Http\Requests\UpdateProjectRequest;
+
+use Illuminate\Support\Facades\Storage;
 
 class ProjectController extends Controller
 {
@@ -37,29 +41,37 @@ class ProjectController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(Request $request)
+    public function store(StoreProjectRequest $request)
     {
-        $request->validate(
-            [
-                "title" => "required|unique:projects|max:50",
-            ],
-            [
-                "title.required" => "Il campo titolo è obbligatorio",
-                "title.unique" => "Il campo titolo è già esistente",
-                "title.max" => "Il campo titolo non deve superare i 50 caratteri"
-            ]
-            );
+        // $request->validate(
+        //     [
+        //         "title" => "required|unique:projects|max:50",
+        //     ],
+        //     [
+        //         "title.required" => "Il campo titolo è obbligatorio",
+        //         "title.unique" => "Il campo titolo è già esistente",
+        //         "title.max" => "Il campo titolo non deve superare i 50 caratteri"
+        //     ]
+        //     );
 
-        $form_data = $request->all();
+        // $form_data = $request->all();
+
+        $form_data = $request->validated();
 
 
         $slug = Project::generateSlug($request->title);
 
         $form_data["slug"] = $slug;
 
+        if( $request->hasFile("cover_image") ){
+
+            $path = Storage::disk("public")->put( "project_image", $request->cover_image );
+            $form_data["cover_image"] = $path;
+        }
+
         $new_project = Project::create($form_data);
 
-        return redirect()->route("amind.projects.index");
+        return redirect()->route("admin.projects.index");
 
 
     }
@@ -93,27 +105,40 @@ class ProjectController extends Controller
      * @param  \App\Models\Admin\Project  $project
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Project $project)
+    public function update(UpdateProjectRequest $request, Project $project)
     {
-        $request->validate(
-            [
-                "title" => "required|unique:projects|max:50",
-            ],
-            [
-                "title.required" => "Il campo titolo è obbligatorio",
-                "title.unique" => "Il campo titolo è già esistente",
-                "title.max" => "Il campo titolo non deve superare i 50 caratteri"
-            ]
-            );
+        // $request->validate(
+        //     [
+        //         "title" => "required|unique:projects|max:50",
+        //     ],
+        //     [
+        //         "title.required" => "Il campo titolo è obbligatorio",
+        //         "title.unique" => "Il campo titolo è già esistente",
+        //         "title.max" => "Il campo titolo non deve superare i 50 caratteri"
+        //     ]
+        //     );
 
-        $form_data = $request->all();
+        // $form_data = $request->all();
+
+        $form_data = $request->validated();
 
 
         $slug = Project::generateSlug($request->title);
 
         $form_data["slug"] = $slug;
 
-        $project->update( $form_data);
+        if( $request->hasFile("cover_image") ){
+
+            if( $project->cover_image){
+                Storage::delete($project->cover_image);
+            }
+        
+
+            $path = Storage::disk("public")->put( "project_image", $request->cover_image );
+            $form_data["cover_image"] = $path;
+        }
+
+        $project->update( $form_data );
 
         return redirect()->route("admin.projects.index")->with("success", "Il project è stato modificato: $project->title");
     }
@@ -126,13 +151,11 @@ class ProjectController extends Controller
      */
     public function destroy(Project $project)
     {
-
-        $project->technologies()->sync([]);
-
+    
         if( $project->cover_image){
             Storage::delete($project->cover_image);
         }
-
+    
         $project->delete();
         return redirect()->route("admin.projects.index");
     }
